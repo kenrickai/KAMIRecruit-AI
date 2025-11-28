@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Talent for Good — Smart Chat</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 0 16px;
+      background: #f5f5f7;
+    }
+    h1 {
+      margin-bottom: 4px;
+    }
+    .card {
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+    }
+    label {
+      font-size: 14px;
+      font-weight: 600;
+      display: block;
+      margin: 8px 0 4px;
+    }
+    input, textarea {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #d0d0d7;
+      font: inherit;
+    }
+    textarea {
+      min-height: 120px;
+      resize: vertical;
+    }
+    button {
+      margin-top: 12px;
+      padding: 10px 18px;
+      border-radius: 999px;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+      background: #2563eb;
+      color: #fff;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+    .meta {
+      font-size: 12px;
+      color: #666;
+      margin-top: 4px;
+    }
+    pre {
+      white-space: pre-wrap;
+      background: #0b1020;
+      color: #e5e7eb;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      max-height: 320px;
+      overflow: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>Talent for Good — Smart Chat</h1>
+  <div class="meta">Local dev UI talking to <code>/smart-chat/{user_id}</code></div>
+
+  <div class="card">
+    <label>API Key (TFG_API_KEY)</label>
+    <input id="apiKey" type="password" placeholder="enter your API key (same as TFG_API_KEY)" />
+
+    <label>User ID</label>
+    <input id="userId" type="number" value="1" />
+
+    <label>Message</label>
+    <textarea id="message" placeholder="e.g. I want to build data analyst skills with NGO projects..."></textarea>
+
+    <button id="sendBtn">Send to Smart Chat</button>
+    <div id="status" class="meta"></div>
+  </div>
+
+  <div class="card">
+    <h3>Response</h3>
+    <div class="meta" id="routeInfo"></div>
+    <pre id="replyBox">(response will appear here)</pre>
+  </div>
+
+  <script>
+    const btn = document.getElementById("sendBtn");
+    const apiKeyInput = document.getElementById("apiKey");
+    const userIdInput = document.getElementById("userId");
+    const messageInput = document.getElementById("message");
+    const statusEl = document.getElementById("status");
+    const replyBox = document.getElementById("replyBox");
+    const routeInfo = document.getElementById("routeInfo");
+
+    async function sendRequest() {
+      const apiKey = apiKeyInput.value.trim();
+      const userId = userIdInput.value.trim();
+      const message = messageInput.value.trim();
+
+      if (!apiKey) {
+        alert("Please enter your API key (TFG_API_KEY).");
+        return;
+      }
+      if (!userId) {
+        alert("Please enter a user ID (e.g. 1).");
+        return;
+      }
+      if (!message) {
+        alert("Please enter a message.");
+        return;
+      }
+
+      btn.disabled = true;
+      statusEl.textContent = "Sending request...";
+      replyBox.textContent = "";
+      routeInfo.textContent = "";
+
+      try {
+        const res = await fetch(`http://127.0.0.1:8000/smart-chat/${userId}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-API-Key": apiKey,
+          },
+          body: JSON.stringify({ message }),
+        });
+
+        const text = await res.text();
+        let data;
+
+        try {
+          data = JSON.parse(text);
+        } catch (err) {
+          replyBox.textContent = "Non-JSON response:\n\n" + text;
+          statusEl.textContent = "Error parsing JSON.";
+          btn.disabled = false;
+          return;
+        }
+
+        if (!res.ok) {
+          replyBox.textContent = JSON.stringify(data, null, 2);
+          statusEl.textContent = `Error ${res.status}`;
+          return;
+        }
+
+        replyBox.textContent = data.reply || "(no reply field)";
+        routeInfo.textContent = `Routed to: ${data.route_target} — ${data.route_reason}`;
+        statusEl.textContent = "OK";
+      } catch (err) {
+        replyBox.textContent = String(err);
+        statusEl.textContent = "Network error";
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    btn.addEventListener("click", sendRequest);
+  </script>
+</body>
+</html>

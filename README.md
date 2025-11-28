@@ -1,0 +1,1 @@
+# Talent for Good - Minimal Prototype\nRun: uvicorn main:app --reload

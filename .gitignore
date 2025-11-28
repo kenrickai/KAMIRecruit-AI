@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual env
+.venv/
+
+# Local DB + uploads + memory files
+talent.db
+*.db
+uploads/
+memory/user_*.json
+
+# VSCode / IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
