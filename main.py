@@ -351,3 +351,7 @@ def upload_resume(user_id: int, file: UploadFile = File(...)):
         "file_saved_as": file.filename,
         "extracted_skills": skills,
     }
+
+# Vercel handler
+from mangum import Mangum
+handler = Mangum(app)
