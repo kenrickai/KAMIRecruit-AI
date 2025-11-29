@@ -1,29 +1,16 @@
-# main.py — multi-agent version with API key auth + routing
-
-import sys
 import os
 import shutil
+import time
+import logging
+from typing import List, Optional
 
-print("PYTHONPATH:", sys.path)
-
-from fastapi import (
-    FastAPI,
-    HTTPException,
-    UploadFile,
-    File,
-    Depends,
-    Header,
-)
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, Request
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
-# JSON memory manager
-from memory.memory import append_history
-
-# Routing
+from memory.memory import append_history, load_memory
 from router.agent_router import route_message, RouteDecision
-
-# SQLAlchemy models & DB helpers
+from agents.orchestrator import Orchestrator
 from tools.database_tool import (
     init_db,
     get_db_session,
@@ -32,326 +19,333 @@ from tools.database_tool import (
     Certificate,
     ChatMessage,
 )
+from tools.pdf_tool import extract_text_from_pdf
+from tools.extract_skills import extract_skills
 
-# Resume parsing helpers
-from tools.resume_parser import extract_text_from_pdf, extract_skills
+# -------------------------------------------------------
+#                FASTAPI APP + LOGGING
+# -------------------------------------------------------
 
-# Agents
-from agents.candidate_guidance_agent import CandidateGuidanceAgent
-from agents.ngo_onboarding_agent import NGOOnboardingAgent
-from agents.task_recommender_agent import TaskRecommenderAgent
+app = FastAPI(title="Talent App - Multi-Agent System")
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("talent_app")
 
-# =========================================================
-# FASTAPI APP + CORS
-# =========================================================
+orchestrator = Orchestrator()
 
-app = FastAPI(title="Talent for Good - Multi-Agent Prototype with Auth")
-
-# Allow calling from a static HTML file / localhost in dev
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],      # in production, tighten this!
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Initialize DB schema
-init_db()
-
-# Real agents
-candidate_agent = CandidateGuidanceAgent()
-ngo_agent = NGOOnboardingAgent()   # still simple stub, OK
-task_agent = TaskRecommenderAgent()
-
-# Directory for resume uploads
-UPLOAD_DIR = "uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+# Basic in-memory metrics
+METRICS = {
+    "total_requests": 0,
+    "total_chats": 0,
+    "total_errors": 0,
+}
 
 
-# =========================================================
-# API KEY AUTH (simple header-based)
-# =========================================================
+# -------------------------------------------------------
+#                   MIDDLEWARE (OBSERVABILITY)
+# -------------------------------------------------------
 
-API_KEY = os.getenv("TFG_API_KEY")  # set this in your .env
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Logs execution time of each request for observability."""
+    start = time.time()
+    response = await call_next(request)
+    duration = (time.time() - start) * 1000
 
-
-def verify_api_key(x_api_key: str = Header(default=None)):
-    """
-    Simple API key check using X-API-Key header.
-
-    - Set TFG_API_KEY in your .env (e.g. TFG_API_KEY=supersecret123)
-    - Client must send:  X-API-Key: supersecret123
-    """
-    if not API_KEY:
-        # Dev safeguard: force you to set the key
-        raise HTTPException(
-            status_code=500,
-            detail="Server API key (TFG_API_KEY) is not configured.",
-        )
-
-    if x_api_key is None or x_api_key != API_KEY:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or missing API key.",
-        )
-
-
-# =========================================================
-# BASIC HEALTH CHECK
-# =========================================================
-
-@app.get("/")
-def root():
-    return {
-        "status": "ok",
-        "message": "Talent for Good API running.",
-    }
-
-
-# =========================================================
-# USER SIGNUP
-# =========================================================
-
-class SignupIn(BaseModel):
-    name: str
-    role: str
-    skills: list[str] = []
-
-
-@app.post("/signup")
-def signup(payload: SignupIn):
-    session = get_db_session()
-    user = User(
-        name=payload.name,
-        role=payload.role,
-        skills=",".join(payload.skills),
+    logger.info(
+        f"{request.method} {request.url.path} "
+        f"status={response.status_code} "
+        f"took={duration:.2f}ms"
     )
-    session.add(user)
-    session.commit()
-    return {"user_id": user.id, "name": user.name, "role": user.role}
+    return response
 
 
-# =========================================================
-# PROJECT LISTING
-# =========================================================
+# -------------------------------------------------------
+#                   PYDANTIC MODELS
+# -------------------------------------------------------
 
-@app.get("/projects")
-def list_projects():
-    session = get_db_session()
-    projects = session.query(Project).all()
-
-    result: list[dict] = []
-    for p in projects:
-        skills = p.required_skills.split(",") if p.required_skills else []
-        result.append(
-            {
-                "id": p.id,
-                "title": p.title,
-                "required_skills": skills,
-            }
-        )
-
-    return result
+class UserCreate(BaseModel):
+    username: str
+    email: str
+    password: str
 
 
-@app.post("/projects/{project_id}/join", dependencies=[Depends(verify_api_key)])
-def join_project(project_id: int, user_id: int):
-    session = get_db_session()
+class UserRead(BaseModel):
+    id: int
+    username: str
+    email: str
+    skills: Optional[str] = None
 
-    proj = session.get(Project, project_id)
-    user = session.get(User, user_id)
-
-    if proj is None or user is None:
-        raise HTTPException(status_code=404, detail="not found")
-
-    return {"status": "joined", "project": proj.title, "user": user.name}
+    class Config:
+        orm_mode = True
 
 
-# =========================================================
-# AGENT START ENDPOINTS (simple)
-# =========================================================
-
-@app.post("/agents/candidate/{user_id}/start", dependencies=[Depends(verify_api_key)])
-def start_candidate(user_id: int):
-    return {"message": f"Candidate agent started for user {user_id}"}
+class ProjectCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    required_skills: Optional[str] = None
 
 
-@app.post("/agents/ngo/{ngo_id}/start", dependencies=[Depends(verify_api_key)])
-def start_ngo(ngo_id: int):
-    return {"message": f"NGO agent started for ngo {ngo_id}"}
+class ProjectRead(BaseModel):
+    id: int
+    title: str
+    description: Optional[str]
+    required_skills: Optional[str]
+
+    class Config:
+        orm_mode = True
 
 
-# =========================================================
-# BASIC CHAT (candidate-only, protected by API key)
-# =========================================================
+class CertificateCreate(BaseModel):
+    name: str
+    issuer: Optional[str] = None
 
-class ChatIn(BaseModel):
+
+class CertificateRead(BaseModel):
+    id: int
+    name: str
+    issuer: Optional[str]
+
+    class Config:
+        orm_mode = True
+
+
+class ChatRequest(BaseModel):
+    user_id: int
     message: str
 
 
-@app.post("/chat/{user_id}", dependencies=[Depends(verify_api_key)])
-def chat_with_ai(user_id: int, payload: ChatIn):
-    """
-    Original simple chat endpoint:
-    - Always uses CandidateGuidanceAgent
-    - Logs to DB + JSON memory
-    """
-    session = get_db_session()
-
-    # 1) Save user message to DB
-    user_msg = ChatMessage(
-        user_id=user_id,
-        sender="user",
-        message=payload.message,
-    )
-    session.add(user_msg)
-    session.commit()
-
-    # 1b) Save user message to JSON memory
-    append_history(user_id, "user", payload.message)
-
-    # 2) Call Gemini candidate agent
-    ai_text = candidate_agent.chat(user_id=user_id, message=payload.message)
-
-    # 3) Save AI reply to DB
-    ai_msg = ChatMessage(
-        user_id=user_id,
-        sender="ai",
-        message=ai_text,
-    )
-    session.add(ai_msg)
-    session.commit()
-
-    # 3b) Save AI reply to JSON memory
-    append_history(user_id, "ai", ai_text)
-
-    return {"reply": ai_text}
-
-
-# =========================================================
-# SMART CHAT (with routing to multiple skills) — main one for frontend
-# =========================================================
-
-class SmartChatOut(BaseModel):
+class ChatResponse(BaseModel):
     reply: str
-    route_target: str
-    route_reason: str
+    route: RouteDecision
+    history: list
 
 
-@app.post(
-    "/smart-chat/{user_id}",
-    response_model=SmartChatOut,
-    dependencies=[Depends(verify_api_key)],
-)
-def smart_chat(user_id: int, payload: ChatIn):
-    """
-    Advanced chat endpoint:
-    - Uses router.agent_router.route_message to pick the right 'skill'
-    - Candidate guidance / NGO / Resume / Search / Task planner
-    - Logs to DB + JSON memory
-    """
-    session = get_db_session()
+class ResumeProcessResponse(BaseModel):
+    message: str
+    file_saved_as: str
+    extracted_skills: List[str]
 
-    # 0) Routing decision
-    decision: RouteDecision = route_message(payload.message)
 
-    # 1) Log USER message
-    user_msg = ChatMessage(
+# -------------------------------------------------------
+#                   STARTUP EVENT
+# -------------------------------------------------------
+
+@app.on_event("startup")
+def on_startup():
+    init_db()
+    os.makedirs("uploads", exist_ok=True)
+    logger.info("🚀 Talent App server started successfully.")
+
+
+# -------------------------------------------------------
+#                     USER ENDPOINTS
+# -------------------------------------------------------
+
+@app.post("/users", response_model=UserRead)
+def create_user(payload: UserCreate, db: Session = Depends(get_db_session)):
+    existing = db.query(User).filter(
+        (User.username == payload.username) | (User.email == payload.email)
+    ).first()
+
+    if existing:
+        raise HTTPException(status_code=400, detail="Username or email already exists.")
+
+    user = User(
+        username=payload.username,
+        email=payload.email,
+        password=payload.password,  # NOTE: hash in production
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    return user
+
+
+@app.get("/users/{user_id}", response_model=UserRead)
+def get_user(user_id: int, db: Session = Depends(get_db_session)):
+    user = db.query(User).get(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+    return user
+
+
+# -------------------------------------------------------
+#                   PROJECT ENDPOINTS
+# -------------------------------------------------------
+
+@app.post("/users/{user_id}/projects", response_model=ProjectRead)
+def create_project(user_id: int, payload: ProjectCreate, db: Session = Depends(get_db_session)):
+    user = db.query(User).get(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    project = Project(
         user_id=user_id,
-        sender="user",
-        message=payload.message,
+        title=payload.title,
+        description=payload.description,
+        required_skills=payload.required_skills,
     )
-    session.add(user_msg)
-    session.commit()
+    db.add(project)
+    db.commit()
+    db.refresh(project)
 
-    append_history(user_id, "user", payload.message)
+    return project
 
-    # 2) Dispatch based on route target
-    if decision.target == "candidate":
-        ai_text = candidate_agent.chat(user_id=user_id, message=payload.message)
 
-    elif decision.target == "ngo":
-        # For now, reuse simple NGO agent stub
-        ai_text = ngo_agent.start(ngo_id=user_id)
+@app.get("/users/{user_id}/projects", response_model=List[ProjectRead])
+def list_projects(user_id: int, db: Session = Depends(get_db_session)):
+    return db.query(Project).filter(Project.user_id == user_id).all()
 
-    elif decision.target == "resume":
-        ai_text = (
-            "It sounds like you're asking about resumes.\n\n"
-            "Right now, I can *parse* resumes if you upload a PDF via "
-            "`POST /upload-resume/{user_id}` in the docs UI. "
-            "After uploading, I’ll update your skills in the system."
-        )
 
-    elif decision.target == "search":
-        # Simple placeholder for future web/search integration
-        ai_text = (
-            "You’re asking for search/lookup.\n\n"
-            "In this prototype I don’t hit the web yet, but you can:\n"
-            "- Browse local NGO portals (e.g., UN Volunteers, Idealist)\n"
-            "- Filter for data / research / monitoring roles\n"
-            "Later we can plug this into a real search tool."
-        )
+# -------------------------------------------------------
+#                 CERTIFICATE ENDPOINTS
+# -------------------------------------------------------
 
-    elif decision.target == "task":
-        # Use TaskRecommenderAgent + Gemini to suggest concrete steps
-        ai_text = task_agent.suggest(user_id=user_id, message=payload.message)
+@app.post("/users/{user_id}/certificates", response_model=CertificateRead)
+def create_certificate(user_id: int, payload: CertificateCreate, db: Session = Depends(get_db_session)):
+    user = db.query(User).get(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
 
-    else:
-        # Fallback to candidate agent
-        ai_text = candidate_agent.chat(user_id=user_id, message=payload.message)
-
-    # 3) Log AI message
-    ai_msg = ChatMessage(
+    cert = Certificate(
         user_id=user_id,
-        sender="ai",
-        message=ai_text,
+        name=payload.name,
+        issuer=payload.issuer,
     )
-    session.add(ai_msg)
-    session.commit()
+    db.add(cert)
+    db.commit()
+    db.refresh(cert)
 
-    append_history(user_id, "ai", ai_text)
-
-    return SmartChatOut(
-        reply=ai_text,
-        route_target=decision.target,
-        route_reason=decision.reason,
-    )
+    return cert
 
 
-# =========================================================
-# RESUME UPLOAD + SKILL PARSER
-# =========================================================
+@app.get("/users/{user_id}/certificates", response_model=List[CertificateRead])
+def list_certificates(user_id: int, db: Session = Depends(get_db_session)):
+    return db.query(Certificate).filter(Certificate.user_id == user_id).all()
 
-@app.post("/upload-resume/{user_id}", dependencies=[Depends(verify_api_key)])
-def upload_resume(user_id: int, file: UploadFile = File(...)):
-    session = get_db_session()
 
-    user = session.get(User, user_id)
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
+# -------------------------------------------------------
+#               MULTI-AGENT CHAT ENDPOINT
+# -------------------------------------------------------
 
-    file_path = os.path.join(UPLOAD_DIR, file.filename)
+@app.post("/chat", response_model=ChatResponse)
+def chat(payload: ChatRequest, db: Session = Depends(get_db_session)):
+    METRICS["total_requests"] += 1
+    METRICS["total_chats"] += 1
 
-    # Save file to disk
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    user = db.query(User).get(payload.user_id)
+    if not user:
+        METRICS["total_errors"] += 1
+        raise HTTPException(status_code=404, detail="User not found.")
 
-    # Extract text & detect skills
+    # Save user message in DB
+    db.add(ChatMessage(user_id=user.id, sender="user", message=payload.message))
+    db.commit()
+
+    # Multi-agent orchestration
+    try:
+        orch = orchestrator.handle(user.id, payload.message)
+        reply_text = orch.reply
+    except Exception as e:
+        METRICS["total_errors"] += 1
+        logger.exception("Error in orchestrator")
+        reply_text = f"An error occurred: {e}"
+        orch = RouteDecision(target="error", reason=str(e))
+
+    # Update memory
+    append_history(user.id, "user", payload.message)
+    append_history(user.id, "ai", reply_text)
+    history = load_memory(user.id).get("history", [])
+
+    # Save AI reply to DB
+    db.add(ChatMessage(user_id=user.id, sender="ai", message=reply_text))
+    db.commit()
+
+    return ChatResponse(reply=reply_text, route=orch, history=history)
+
+
+# -------------------------------------------------------
+#               RESUME PROCESS ENDPOINT
+# -------------------------------------------------------
+
+@app.post("/process_resume", response_model=ResumeProcessResponse)
+async def process_resume(user_id: int, file: UploadFile = File(...), db: Session = Depends(get_db_session)):
+    user = db.query(User).get(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    uploads_dir = "uploads"
+    os.makedirs(uploads_dir, exist_ok=True)
+
+    file_path = os.path.join(uploads_dir, file.filename)
+    with open(file_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+
     text = extract_text_from_pdf(file_path)
     skills = extract_skills(text)
 
-    # Save skills back to DB
     user.skills = ",".join(skills)
-    session.commit()
+    db.commit()
+
+    return ResumeProcessResponse(
+        message="Resume processed successfully",
+        file_saved_as=file.filename,
+        extracted_skills=skills,
+    )
+
+
+# -------------------------------------------------------
+#                 OBSERVABILITY: METRICS
+# -------------------------------------------------------
+
+@app.get("/metrics")
+def get_metrics():
+    return METRICS
+
+
+# -------------------------------------------------------
+#            AGENT EVALUATION ENDPOINT
+# -------------------------------------------------------
+
+class EvalCase(BaseModel):
+    message: str
+    expected_contains: str
+
+
+EVAL_CASES = [
+    EvalCase(message="I want to find volunteer data projects.", expected_contains="project"),
+    EvalCase(message="How can I improve my skills?", expected_contains="skill"),
+]
+
+
+@app.get("/evaluate")
+def evaluate_agents(user_id: int = 1, db: Session = Depends(get_db_session)):
+    user = db.query(User).get(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    results = []
+    passed = 0
+
+    for case in EVAL_CASES:
+        out = orchestrator.handle(user_id=user.id, message=case.message)
+        ok = case.expected_contains in out.reply.lower()
+        if ok:
+            passed += 1
+
+        results.append({
+            "message": case.message,
+            "expected_contains": case.expected_contains,
+            "reply": out.reply,
+            "agent": out.agent_name,
+            "passed": ok
+        })
 
     return {
-        "message": "Resume processed successfully",
-        "file_saved_as": file.filename,
-        "extracted_skills": skills,
+        "total_cases": len(EVAL_CASES),
+        "passed": passed,
+        "score": passed / len(EVAL_CASES),
+        "cases": results,
     }
-
-# Vercel handler
-from mangum import Mangum
-handler = Mangum(app)

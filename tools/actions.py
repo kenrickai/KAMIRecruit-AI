@@ -1,24 +1,35 @@
-# tools/actions.py
+from sqlalchemy.orm import Session
 
-def action_search_projects(skill: str):
+from tools.database_tool import User
+from tools.search_tool import search_projects_by_skills
+
+
+def action_search_projects_for_user(user: User) -> dict:
     """
-    Dummy implementation.
-    Later you can connect to real NGO directories.
+    Search projects based on user's skills.
     """
-    return {
-        "results": [
-            {"project": "Data Cleanup for NGO X", "match_score": 0.88},
-            {"project": "Impact Evaluation Dashboard", "match_score": 0.81},
-        ],
-        "used_skill": skill
-    }
+    skills = user.skills.split(",") if user.skills else []
+    projects = search_projects_by_skills(skills)
+    return {"user_id": user.id, "skills": skills, "projects": projects}
 
 
-def action_update_user_skill(user, new_skill: str, session):
+def action_update_user_skill(user: User, new_skill: str, session: Session) -> dict:
+    """
+    Add a new skill to the user's profile.
+    """
     skill_list = user.skills.split(",") if user.skills else []
-    if new_skill not in skill_list:
-        skill_list.append(new_skill)
+    new_skill_clean = new_skill.strip()
+    if new_skill_clean and new_skill_clean.lower() not in [s.lower() for s in skill_list]:
+        skill_list.append(new_skill_clean)
         user.skills = ",".join(skill_list)
         session.commit()
 
     return {"updated_skills": skill_list}
+
+
+def action_search_projects(skill: str) -> dict:
+    """
+    Simple skill-based project search using a single skill.
+    """
+    projects = search_projects_by_skills([skill])
+    return {"used_skill": skill, "projects": projects}
