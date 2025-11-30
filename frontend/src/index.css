@@ -1,0 +1,142 @@
+/* --------------------------------------------------------
+   Tailwind base styles
+---------------------------------------------------------*/
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* --------------------------------------------------------
+   Global Styling
+---------------------------------------------------------*/
+html, body {
+  background-color: #0f172a; /* slate-950 */
+  color: #f8fafc; /* slate-50 */
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Smooth transitions globally */
+* {
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* --------------------------------------------------------
+   Scrollbar Styling (SaaS-style)
+---------------------------------------------------------*/
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f172a; /* slate-950 */
+}
+
+::-webkit-scrollbar-thumb {
+  background: #475569; /* slate-600 */
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #64748b; /* slate-500 */
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #475569 #0f172a;
+}
+
+/* --------------------------------------------------------
+   Gradient Text Utils
+---------------------------------------------------------*/
+.gradient-text {
+  background: linear-gradient(to right, #6366f1, #ec4899, #facc15);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* --------------------------------------------------------
+   Chat UI Enhancements
+---------------------------------------------------------*/
+.chat-bubble {
+  border-radius: 1rem;
+  padding: 0.75rem 1rem;
+  max-width: 80%;
+  font-size: 0.85rem;
+}
+
+.chat-bubble.user {
+  background: linear-gradient(to right, #34d399, #14b8a6);
+  color: #0f172a;
+  margin-left: auto;
+}
+
+.chat-bubble.ai {
+  background: #1e293b;
+  color: #e2e8f0;
+  margin-right: auto;
+}
+
+/* Typing indicator */
+.typing-dot {
+  width: 6px;
+  height: 6px;
+  background-color: #94a3b8;
+  border-radius: 50%;
+  animation: bounce 0.7s infinite alternate;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes bounce {
+  from { opacity: 0.3; transform: translateY(0); }
+  to   { opacity: 1; transform: translateY(-3px); }
+}
+
+/* --------------------------------------------------------
+   Card / Panel Styling
+---------------------------------------------------------*/
+.card {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid #1e293b;
+  border-radius: 1rem;
+  padding: 1.5rem;
+}
+
+/* --------------------------------------------------------
+   Button Enhancements
+---------------------------------------------------------*/
+.btn-primary {
+  background: linear-gradient(to right, #6366f1, #ec4899);
+  padding: 0.6rem 1.2rem;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: white;
+}
+
+.btn-primary:hover {
+  background: linear-gradient(to right, #818cf8, #f472b6);
+}
+
+.btn-outline {
+  border: 1px solid #334155;
+  padding: 0.6rem 1.2rem;
+  border-radius: 9999px;
+  color: #e2e8f0;
+  font-size: 0.8rem;
+}
+
+.btn-outline:hover {
+  background: #1e293b;
+}
+
+/* -------------------------*
