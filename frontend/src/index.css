@@ -2,7 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Global defaults */
-html, body {
-  @apply bg-slate-900 text-slate-100 antialiased;
+/* ------------------------- */
+/* Global Styles */
+body {
+  @apply bg-slate-950 text-white;
+}
+
+/* Layout resets */
+section {
+  @apply py-10 md:py-16;
 }
