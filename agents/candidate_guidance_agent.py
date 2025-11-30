@@ -4,38 +4,43 @@ import os
 import google.generativeai as genai
 from memory.memory import load_memory
 
+# Configure Gemini client with API key
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 
 class CandidateGuidanceAgent:
+    """
+    Provides personalized career & skill guidance using Gemini 2.0 Flash.
+    Memory from local storage is used to generate context-aware responses.
+    """
 
     def chat(self, user_id: int, message: str) -> str:
+        # Load user memory
         memory = load_memory(user_id)
         history = memory.get("history", [])[-6:]
 
         prompt = f"""
-You are the Talent-for-Good AI agent.
+You are a Career Guidance Agent helping job seekers improve their career, resume, and skills.
 
 User ID: {user_id}
-Recent history: {history}
 
-Your job is to:
-1) Answer questions
-2) Use tools when necessary
-3) ALWAYS speak to the user in clear, friendly language.
+Recent interaction history:
+{history}
 
 User message:
 {message}
+
+Instructions:
+- Be helpful, practical, and friendly.
+- Use context from memory when relevant.
+- Provide actionable next steps.
+- Keep answers concise.
 """
 
-        # (you can keep your tools definition here if you want, no problem)
+        try:
+            model = genai.GenerativeModel("gemini-2.0-flash")
+            response = model.generate_content(prompt)
+            return (response.text or "").strip()
 
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=prompt,
-        )
-
-        # ✅ Return plain text, not raw object
-        return getattr(response, "text", "") or "[No response from Gemini]"
+        except Exception as e:
+            return f"Error generating response: {e}"
