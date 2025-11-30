@@ -8,6 +8,10 @@ import Admin from "./pages/Admin.jsx";
 import Chat from "./pages/Chat.jsx";
 import Upload from "./pages/Upload.jsx";
 
+import Contact from "./pages/Contact.jsx";
+import Pricing from "./pages/Pricing.jsx";
+import Features from "./pages/Features.jsx";
+
 export default function App() {
   return (
     <>
@@ -18,6 +22,11 @@ export default function App() {
         <Route path="/admin" element={<Admin />} />
         <Route path="/chat" element={<Chat />} />
         <Route path="/upload" element={<Upload />} />
+
+        {/* Newly added */}
+        <Route path="/contact" element={<Contact />} />
+        <Route path="/pricing" element={<Pricing />} />
+        <Route path="/features" element={<Features />} />
       </Routes>
 
       <Footer />
