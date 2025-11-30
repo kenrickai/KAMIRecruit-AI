@@ -2,13 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ------------------------- */
-/* Global Styles */
+/* Reset only — NO @apply allowed here */
 body {
-  @apply bg-slate-950 text-white;
+  background-color: #020617; /* bg-slate-950 equivalent */
+  color: #ffffff;
+  font-family: sans-serif;
 }
 
-/* Layout resets */
 section {
-  @apply py-10 md:py-16;
+  padding-top: 2.5rem;
+  padding-bottom: 2.5rem;
 }
