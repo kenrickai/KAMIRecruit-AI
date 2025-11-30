@@ -1,41 +1,29 @@
-import spacy
+import pdfplumber
+import re
 
-# Try to load spaCy model; fall back gracefully if missing
-try:
-    nlp = spacy.load("en_core_web_sm")
-except Exception:
-    print("[extract_skills] spaCy model not found. Keyword-only mode.")
-    nlp = None
+def extract_skills_from_pdf(pdf_path: str):
+    """Extract skills by scanning text from PDF."""
+    skills = []
+    text = ""
 
-SKILL_KEYWORDS = [
-    "python", "javascript", "typescript", "java", "c++", "c#", "go", "rust",
-    "sql", "mysql", "postgresql", "mongodb", "redis",
-    "fastapi", "django", "flask", "react", "node", "express",
-    "aws", "azure", "gcp", "docker", "kubernetes",
-    "machine learning", "nlp", "pytorch", "tensorflow", "sklearn",
-    "html", "css", "tailwind", "vue", "angular",
-    "git", "linux",
-]
+    try:
+        with pdfplumber.open(pdf_path) as pdf:
+            for page in pdf.pages:
+                text += page.extract_text() or ""
+    except Exception as e:
+        return [f"Error reading PDF: {str(e)}"]
 
+    # simplified keyword-based extraction
+    SKILL_KEYWORDS = [
+        "python", "sql", "excel", "analysis", "research", "project",
+        "communication", "leadership", "data", "marketing",
+        "ai", "machine learning", "design", "javascript", "react",
+    ]
 
-def extract_skills(text: str) -> list[str]:
-    """
-    Extracts skills from text using simple keyword matching.
-    If spaCy is available, lightly enhances detection.
-    """
     text_lower = text.lower()
-    found = set()
 
-    # Keyword search
     for skill in SKILL_KEYWORDS:
         if skill in text_lower:
-            found.add(skill)
+            skills.append(skill.capitalize())
 
-    # Optional spaCy enhancement
-    if nlp:
-        doc = nlp(text)
-        for token in doc:
-            if token.text.lower() in SKILL_KEYWORDS:
-                found.add(token.text.lower())
-
-    return sorted(found)
+    return skills
