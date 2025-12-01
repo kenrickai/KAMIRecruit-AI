@@ -9,7 +9,7 @@ class CandidateGuidanceAgent:
 
     def chat(self, message: str) -> str:
         try:
-            response = self.client.responses.generate(
+            response = self.client.models.generate_content(
                 model=self.model,
                 contents=[message]
             )
