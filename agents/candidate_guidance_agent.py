@@ -1,5 +1,5 @@
 import os
-from google import genai  # NEW SDK
+from google import genai
 
 class CandidateGuidanceAgent:
     def __init__(self):
