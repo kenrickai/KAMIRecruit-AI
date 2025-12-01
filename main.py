@@ -5,25 +5,22 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
-# ============================================================
-# 🔍 GOOGLE SDK DIAGNOSTIC CHECK
-# (This is temporary — we will remove it after debugging)
-# ============================================================
-
-try:
-    import google.generativeai as genai
-    print(">>> GOOGLE SDK PATH:", genai.__file__)
-    print(">>> HAS genai.configure:", hasattr(genai, "configure"))
-    print(">>> HAS genai.GenerativeModel:", hasattr(genai, "GenerativeModel"))
-except Exception as e:
-    print(">>> FAILED TO IMPORT google.generativeai:", e)
-
-# ============================================================
-
 from tools.extract_skills import extract_skills_from_pdf
 from agents.candidate_guidance_agent import CandidateGuidanceAgent
 
+import pkg_resources
+
+# --- Load environment ---
 load_dotenv()
+
+# --- Diagnostic: print GOOGLE-related packages ---
+print(">>> Installed Google packages:")
+for p in pkg_resources.working_set:
+    if "google" in p.project_name.lower():
+        print("   -", p.project_name, p.version)
+print(">>> END GOOGLE PACKAGE LIST")
+# --------------------------------------------------
+
 
 app = FastAPI(title="KAMIRecruit AI Backend")
 
