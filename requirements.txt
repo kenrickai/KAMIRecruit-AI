@@ -1,11 +1,8 @@
 fastapi
 uvicorn[standard]
-sqlalchemy
-pydantic
 python-dotenv
-google-generativeai==0.7.2
+requests
 python-multipart
 pdfplumber
 spacy
-requests
 gunicorn

@@ -1,46 +1,30 @@
 import os
 import requests
 
+API_KEY = os.getenv("GEMINI_API_KEY")
+
+# REST endpoint for Cloud Console API keys
+MODEL = "models/gemini-pro"
+ENDPOINT = f"https://generativelanguage.googleapis.com/v1beta/{MODEL}:generateContent?key={API_KEY}"
+
 class CandidateGuidanceAgent:
-    def __init__(self):
-        self.api_key = os.getenv("GEMINI_API_KEY")
-
-        # v1beta REST text model endpoint
-        self.url = (
-            "https://generativelanguage.googleapis.com/v1beta/models/"
-            "gemini-pro:generateContent"
-        )
-
-    def chat(self, message: str) -> str:
+    def chat(self, message: str):
         try:
             payload = {
                 "contents": [
                     {
-                        "parts": [
-                            {"text": message}
-                        ]
+                        "parts": [{"text": message}]
                     }
                 ]
             }
 
-            r = requests.post(
-                f"{self.url}?key={self.api_key}",
-                json=payload,
-                timeout=20
-            )
+            response = requests.post(ENDPOINT, json=payload)
+            data = response.json()
 
-            data = r.json()
-
-            # 1️⃣ handle API errors
-            if "error" in data:
-                return f"⚠️ API Error: {data['error'].get('message')}"
-
-            # 2️⃣ handle missing candidates
             if "candidates" not in data:
-                return f"⚠️ API Error: Response missing candidates: {data}"
+                return f"⚠️ API Error: {data}"
 
-            # 3️⃣ extract text
             return data["candidates"][0]["content"]["parts"][0]["text"]
 
         except Exception as e:
-            return f"⚠️ REST API Error: {str(e)}"
+            return f"⚠️ Request Failed: {str(e)}"
