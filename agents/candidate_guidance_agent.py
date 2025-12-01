@@ -5,7 +5,8 @@ class CandidateGuidanceAgent:
     def __init__(self):
         api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel("gemini-1.5-flash")
+        # Use a stable, widely-available model
+        self.model = genai.GenerativeModel("gemini-1.0-pro")
 
     def chat(self, message: str) -> str:
         try:
