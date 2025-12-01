@@ -1,20 +1,26 @@
 import os
-import google.generativeai as genai
+import requests
 
 class CandidateGuidanceAgent:
     def __init__(self):
-        api_key = os.getenv("GEMINI_API_KEY")
-        genai.configure(api_key=api_key)
+        # Load your API key from environment variables
+        self.api_key = os.getenv("GEMINI_API_KEY")
 
-        # Correct model format for google-generativeai 0.7.2
-        self.model = genai.GenerativeModel("models/gemini-1.5-flash")
-
-        # Debug log (Render will print this)
-        print(">>> USING MODEL:", "models/gemini-1.5-flash")
+        # --- THIS is the REST endpoint. Leave it exactly like this. ---
+        self.url = (
+            "https://generativelanguage.googleapis.com/v1/models/"
+            "gemini-pro:generateContent?key=" + self.api_key
+        )
+        # --------------------------------------------------------------
 
     def chat(self, message: str) -> str:
         try:
-            response = self.model.generate_content(message)
-            return response.text
-        except Exception as e:
-            return f"⚠️ Error: {str(e)}"
+            payload = {
+                "contents": [
+                    {
+                        "parts": [
+                            {"text": message}
+                        ]
+                    }
+                ]
+            }
