@@ -3,12 +3,9 @@ uvicorn[standard]
 sqlalchemy
 pydantic
 python-dotenv
-google-generativeai==0.7.2
+google-generativeai==0.6.6
 python-multipart
 pdfplumber
 spacy
 requests
 gunicorn
-
-# Force REMOVE the broken dependency
-google-ai-generativelanguage==0.6.0
