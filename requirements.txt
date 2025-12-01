@@ -9,3 +9,6 @@ pdfplumber
 spacy
 requests
 gunicorn
+
+# Force REMOVE the broken dependency
+google-ai-generativelanguage==0.6.0
