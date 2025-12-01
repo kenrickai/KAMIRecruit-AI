@@ -3,15 +3,13 @@ import requests
 
 class CandidateGuidanceAgent:
     def __init__(self):
-        # Load your API key from environment variables
         self.api_key = os.getenv("GEMINI_API_KEY")
 
-        # --- THIS is the REST endpoint. Leave it exactly like this. ---
+        # REST endpoint for Gemini-Pro (text model)
         self.url = (
-            "https://generativelanguage.googleapis.com/v1/models/"
-            "gemini-pro:generateContent?key=" + self.api_key
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            "gemini-pro:generateContent"
         )
-        # --------------------------------------------------------------
 
     def chat(self, message: str) -> str:
         try:
@@ -24,3 +22,17 @@ class CandidateGuidanceAgent:
                     }
                 ]
             }
+
+            response = requests.post(
+                f"{self.url}?key={self.api_key}",
+                json=payload,
+                timeout=10
+            )
+
+            data = response.json()
+
+            # Extract response safely
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+
+        except Exception as e:
+            return f"⚠️ REST API Error: {str(e)}"
