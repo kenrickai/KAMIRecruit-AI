@@ -1,21 +1,16 @@
 import os
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from dotenv import load_dotenv
-
-# Agents
+from tools.extract_skills import extract_skills_from_pdf
 from agents.candidate_guidance_agent import CandidateGuidanceAgent
 
-# Tools
-from tools.extract_skills import extract_skills_from_pdf
+# FastAPI app
+app = FastAPI()
 
-load_dotenv()
-
-app = FastAPI(title="KAMIRECRUIT AI BACKEND")
-
-# CORS
+# Allow all CORS for frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -23,48 +18,44 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# INIT AI AGENT
+# === Serve FRONTEND build folder ===
+if os.path.exists("frontend/dist"):
+    app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="frontend")
+else:
+    print("⚠️ WARNING: frontend/dist not found — React build missing")
+
+# === AI Agent ===
 agent = CandidateGuidanceAgent()
 
-
-# ------------------- HEALTH CHECK -------------------
-@app.get("/api/health")
-def health():
-    return {"status": "ok", "message": "backend running"}
-
-
-# ------------------- CHAT ENDPOINT -------------------
 class ChatRequest(BaseModel):
     message: str
 
+
+# ======================== API ROUTES ========================
+
 @app.post("/api/chat")
-async def chat(req: ChatRequest):
-    try:
-        reply = agent.chat(req.message)
-        return {"reply": reply}
-    except Exception as e:
-        return {"reply": f"⚠️ Backend Error: {str(e)}"}
+async def chat_api(data: ChatRequest):
+    reply = agent.chat(data.message)
+    return {"reply": reply}
 
 
-# ------------------- RESUME PARSER -------------------
 @app.post("/api/process_resume")
 async def process_resume(file: UploadFile = File(...)):
+    if not file.filename.endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files allowed")
 
-    if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="PDF only")
-
-    filepath = f"temp_{file.filename}"
-
-    with open(filepath, "wb") as f:
+    temp_path = f"temp_{file.filename}"
+    with open(temp_path, "wb") as f:
         f.write(await file.read())
 
-    skills = extract_skills_from_pdf(filepath)
-    os.remove(filepath)
+    try:
+        skills = extract_skills_from_pdf(temp_path)
+    finally:
+        os.remove(temp_path)
 
     return {"skills": skills}
 
 
-# ------------------- FRONTEND SERVE -------------------
-@app.get("/")
-def root():
-    return FileResponse("frontend/index.html")
+@app.get("/api/health")
+def health():
+    return {"status": "ok"}

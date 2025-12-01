@@ -1,20 +1,30 @@
 import os
-import google.generativeai as genai
+import requests
 
 class CandidateGuidanceAgent:
     def __init__(self):
-        api_key = os.getenv("GEMINI_API_KEY")
-        genai.configure(api_key=api_key)
+        self.api_key = os.getenv("GEMINI_API_KEY")
 
-        # correct model for 0.3.2
-        self.model = "models/gemini-pro"
+        # use REST (never breaks)
+        self.api_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
 
     def chat(self, message: str) -> str:
         try:
-            response = genai.generate_text(
-                model=self.model,
-                prompt=message
+            payload = {
+                "contents": [{"parts": [{"text": message}]}]
+            }
+
+            res = requests.post(
+                f"{self.api_url}?key={self.api_key}",
+                json=payload
             )
-            return response.result
+
+            data = res.json()
+
+            if "candidates" in data:
+                return data["candidates"][0]["content"]["parts"][0]["text"]
+
+            return f"⚠️ API Error: {data}"
+
         except Exception as e:
-            return f"⚠️ API Error: {str(e)}"
+            return f"⚠️ Exception: {str(e)}"
