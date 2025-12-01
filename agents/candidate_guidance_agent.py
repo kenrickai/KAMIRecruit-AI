@@ -1,13 +1,16 @@
 import os
 import requests
 
-API_KEY = os.getenv("GEMINI_API_KEY")
-
-# REST endpoint for Cloud Console API keys
-MODEL = "models/gemini-pro"
-ENDPOINT = f"https://generativelanguage.googleapis.com/v1beta/{MODEL}:generateContent?key={API_KEY}"
-
 class CandidateGuidanceAgent:
+    def __init__(self):
+        self.api_key = os.getenv("GEMINI_API_KEY")
+
+        # AI Studio model ID
+        self.model = "models/gemini-1.5-flash"
+
+        # AI Studio REST endpoint
+        self.url = f"https://generativelanguage.googleapis.com/v1beta/{self.model}:generateContent?key={self.api_key}"
+
     def chat(self, message: str):
         try:
             payload = {
@@ -18,7 +21,7 @@ class CandidateGuidanceAgent:
                 ]
             }
 
-            response = requests.post(ENDPOINT, json=payload)
+            response = requests.post(self.url, json=payload)
             data = response.json()
 
             if "candidates" not in data:
