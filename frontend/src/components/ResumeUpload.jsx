@@ -20,7 +20,7 @@ export default function ResumeUpload() {
       const formData = new FormData();
       formData.append("file", file);
 
-      const res = await api.post("/process_resume", formData);
+      const res = await api.post("/api/process_resume", formData);
       const data = res.data;
 
       setSkills(data.skills || []);

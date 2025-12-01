@@ -6,10 +6,13 @@ export default function Navbar() {
 
         <nav className="space-x-6 text-slate-700 font-medium">
           <a href="/" className="hover:text-indigo-600">Home</a>
+          <a href="/upload" className="hover:text-indigo-600">Upload CV</a>
+          <a href="/chat" className="hover:text-indigo-600">Chat</a>
           <a href="/pricing" className="hover:text-indigo-600">Pricing</a>
           <a href="/features" className="hover:text-indigo-600">Features</a>
           <a href="/contact" className="hover:text-indigo-600">Contact</a>
         </nav>
+
       </div>
     </header>
   );

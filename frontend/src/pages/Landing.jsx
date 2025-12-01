@@ -11,10 +11,10 @@ export default function Landing() {
         </p>
 
         <a
-          href="/dashboard"
-          className="mt-10 inline-block bg-white text-indigo-600 px-6 py-3 rounded-lg font-semibold hover:scale-105 transition"
-        >
-          Try Free Now
+        href="/upload"
+        className="mt-10 inline-block bg-white text-indigo-600 px-6 py-3 rounded-lg font-semibold hover:scale-105 transition"
+      >
+        Try Free Now
         </a>
       </div>
     </section>

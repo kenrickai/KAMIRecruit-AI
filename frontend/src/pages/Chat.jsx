@@ -12,7 +12,7 @@ export default function Chat() {
     setMessages((prev) => [...prev, { sender: "You", text: input }]);
 
     try {
-      const res = await api.post("/chat", { message: input });
+      const res = await api.post("/api/chat", { message: input });
       const reply = res.data.reply || "No response received.";
 
       // Add AI message
