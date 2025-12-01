@@ -3,7 +3,7 @@ uvicorn[standard]
 sqlalchemy
 pydantic
 python-dotenv
-google-genai==0.3.2
+google-genai==1.2.0
 python-multipart
 pdfplumber
 spacy
