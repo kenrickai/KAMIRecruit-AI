@@ -1,16 +1,18 @@
 import os
-import google.generativeai as genai
-
-# Configure Gemini API
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+from google import genai  # NEW SDK
 
 class CandidateGuidanceAgent:
     def __init__(self):
-        self.model = genai.GenerativeModel("gemini-1.5-flash")
+        api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        self.client = genai.Client(api_key=api_key)
+        self.model = "gemini-1.5-flash"
 
     def chat(self, message: str) -> str:
         try:
-            result = self.model.generate_content(message)
-            return result.text
+            response = self.client.responses.generate(
+                model=self.model,
+                contents=[message]
+            )
+            return response.text
         except Exception as e:
             return f"⚠️ Error: {str(e)}"
